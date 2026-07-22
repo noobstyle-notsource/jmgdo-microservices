@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dealer Evaluation Microservice</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 40px;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0f62fe;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 8px;
+            color: #444;
+        }
+        select {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+        .results-box {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-left: 5px solid #0f62fe;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #0f62fe;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .price-badge {
+            font-weight: bold;
+            color: #198754;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dealer Evaluation Portal</h1>
+
+        <!-- API Endpoint Configuration Placeholders -->
+        <script>
+            // API Endpoint Placeholders for Microservices
+            const PRODUCT_API_URL = "http://127.0.0.1:5000/products";
+            const DEALER_API_URL = "http://127.0.0.1:3000/dealers";
+        </script>
+
+        <div class="form-group">
+            <label for="productSelect">Select Product:</label>
+            <select id="productSelect" onchange="onProductChange()">
+                <option value="">-- Loading Products... --</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="dealerGroup" style="display:none;">
+            <label for="dealerSelect">Select Dealer:</label>
+            <select id="dealerSelect" onchange="onDealerChange()">
+                <option value="all">-- All Dealers --</option>
+            </select>
+        </div>
+
+        <div id="results" class="results-box" style="display:none;">
+            <h3>Pricing Evaluation Details</h3>
+            <div id="displayArea"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentDealers = [];
+
+        // Load preloaded products from Python API on startup
+        async function loadProducts() {
+            try {
+                const res = await fetch(PRODUCT_API_URL);
+                const products = await res.json();
+                const select = document.getElementById("productSelect");
+                select.innerHTML = '<option value="">-- Select a Product --</option>';
+                products.forEach(p => {
+                    select.innerHTML += `<option value="${p.id}">${p.name} ($${p.price.toFixed(2)})</option>`;
+                });
+            } catch (err) {
+                console.error("Error loading products:", err);
+            }
+        }
+
+        // When a product is selected, fetch list of dealers supplying that product
+        async function onProductChange() {
+            const productId = document.getElementById("productSelect").value;
+            const dealerGroup = document.getElementById("dealerGroup");
+            const dealerSelect = document.getElementById("dealerSelect");
+            const results = document.getElementById("results");
+
+            if (!productId) {
+                dealerGroup.style.display = "none";
+                results.style.display = "none";
+                return;
+            }
+
+            try {
+                const res = await fetch(`${DEALER_API_URL}?productId=${productId}`);
+                currentDealers = await res.json();
+
+                dealerSelect.innerHTML = '<option value="all">-- All Dealers --</option>';
+                currentDealers.forEach(d => {
+                    dealerSelect.innerHTML += `<option value="${d.dealerId}">${d.dealerName}</option>`;
+                });
+
+                dealerGroup.style.display = "block";
+                displayAllDealers();
+            } catch (err) {
+                console.error("Error fetching dealers:", err);
+            }
+        }
+
+        // When a dealer is selected or 'All Dealers' is chosen
+        function onDealerChange() {
+            const selectedDealerId = document.getElementById("dealerSelect").value;
+            if (selectedDealerId === "all") {
+                displayAllDealers();
+            } else {
+                displaySingleDealer(parseInt(selectedDealerId));
+            }
+        }
+
+        // Display all dealers supplying product
+        function displayAllDealers() {
+            const results = document.getElementById("results");
+            const displayArea = document.getElementById("displayArea");
+
+            if (currentDealers.length === 0) {
+                displayArea.innerHTML = "<p>No dealers found for this product.</p>";
+            } else {
+                let html = `<table>
+                    <thead>
+                        <tr>
+                            <th>Dealer ID</th>
+                            <th>Dealer Name</th>
+                            <th>Offered Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+                currentDealers.forEach(d => {
+                    html += `<tr>
+                        <td>${d.dealerId}</td>
+                        <td>${d.dealerName}</td>
+                        <td class="price-badge">$${d.price.toFixed(2)}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+                displayArea.innerHTML = html;
+            }
+            results.style.display = "block";
+        }
+
+        // Display single selected dealer price
+        function displaySingleDealer(dealerId) {
+            const results = document.getElementById("results");
+            const displayArea = document.getElementById("displayArea");
+            const dealer = currentDealers.find(d => d.dealerId === dealerId);
+
+            if (dealer) {
+                displayArea.innerHTML = `
+                    <p><strong>Dealer Name:</strong> ${dealer.dealerName}</p>
+                    <p><strong>Dealer ID:</strong> ${dealer.dealerId}</p>
+                    <p><strong>Offered Price:</strong> <span class="price-badge">$${dealer.price.toFixed(2)}</span></p>
+                `;
+            }
+            results.style.display = "block";
+        }
+
+        // Initial load
+        window.onload = loadProducts;
+    </script>
+</body>
+</html>

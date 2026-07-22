@@ -11,8 +11,19 @@ products = [
     {'id': 144, 'name': 'Black Marker', 'price': 1.99}
 ]
 
-#
-#Add all the REST API end-points here
-#
+# GET /products - Returns all products
+@app.route('/products', methods=['GET'])
+def get_products():
+    return jsonify(products)
 
-app.run(port=5000,debug=True)
+# GET /products/<id> - Returns a specific product by ID
+@app.route('/products/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    product = next((p for p in products if p['id'] == product_id), None)
+    if product:
+        return jsonify(product)
+    return jsonify({'error': 'Product not found'}), 404
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
